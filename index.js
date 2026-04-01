@@ -6,51 +6,62 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-// 🔑 Tu llave de ScraperAPI
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor de Datos Blindado - Online");
+  res.send("🚀 [Referidos] Motor de Minería de Datos - Online");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Pidiendo datos oficiales para categoría: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Minando datos de la categoría: ${categoryId}`);
 
-  // LLAMADA A LA API OFICIAL A TRAVÉS DEL TÚNEL DE SCRAPERAPI
-  // Usamos premium=true para asegurar IPs residenciales de Chile
-  const mlApiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}`;
-  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(mlApiUrl)}&country_code=cl&premium=true`;
+  const targetUrl = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
+  
+  // Usamos el túnel estándar de ScraperAPI (más rápido y estable para minería)
+  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl`;
 
   try {
-    const response = await axios.get(tunnelUrl, { timeout: 60000 });
+    const response = await axios.get(tunnelUrl, { timeout: 45000 });
+    const html = response.data;
+
+    // ⛏️ MINERÍA: Buscamos el objeto JSON que ML esconde en el código
+    const jsonKey = 'window.__PRELOADED_STATE__ = ';
+    const startIndex = html.indexOf(jsonKey);
     
-    // Mercado Libre nos devuelve un JSON directo aquí
-    const rawItems = response.data.results || [];
+    if (startIndex === -1) {
+      console.log("⚠️ No se encontró el bloque de datos. ML aplicó un escudo de fase.");
+      return res.json({ results: [], message: "Escudo detectado" });
+    }
+
+    // Extraemos y limpiamos el JSON
+    const dataPart = html.substring(startIndex + jsonKey.length);
+    const endIndex = dataPart.indexOf(';</script>');
+    const rawJson = dataPart.substring(0, endIndex);
+    const fullData = JSON.parse(rawJson);
+
+    // Navegamos por el laberinto del JSON oficial de ML
+    const results = fullData.initialState.results || [];
     
-    // Mapeamos los 3 productos con el formato que necesita Referidos
-    const products = rawItems.slice(0, 3).map(item => ({
+    const top3 = results.slice(0, 3).map(item => ({
       id: item.id,
       title: item.title,
       price: item.price,
       permalink: item.permalink,
-      thumbnail: item.thumbnail.replace("-I.jpg", "-O.jpg") // Mejora la calidad de la foto
+      thumbnail: item.thumbnail
     }));
 
-    console.log(`✅ [Referidos] Éxito: ${products.length} productos obtenidos vía túnel.`);
-    res.json({ results: products });
+    console.log(`✅ [Referidos] ¡MINA ENCONTRADA! ${top3.length} productos extraídos.`);
+    res.json({ results: top3 });
 
   } catch (err) {
-    console.error("❌ Fallo en el túnel de datos:", err.message);
-    res.status(500).json({ 
-      error: "Error de conexión con la bóveda", 
-      details: err.message 
-    });
+    console.error("❌ Fallo en la excavación:", err.message);
+    res.status(500).json({ error: "Error de minería", details: err.message });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 [Referidos] API activa en puerto ${PORT}`);
+  console.log(`🚀 [Referidos] Escáner activo en puerto ${PORT}`);
 });
