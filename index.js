@@ -1,97 +1,75 @@
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
+const { ApifyClient } = require('apify-client');
 
 const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-// 🔑 Credenciales Oficiales de FIFER (ML Developer)
-const APP_ID = '5164271441652076';
-const SECRET = 'FD7eRrXg3UM12QKxAgr9sqA8ZGlt3nXc';
-
-// Memoria caché para el pase VIP
-let accessToken = null;
-let tokenExpiration = 0;
-
-// Función para obtener o renovar las llaves del edificio
-async function getAccessToken() {
-  // Si tenemos un token válido, lo reusamos (es más rápido)
-  if (accessToken && Date.now() < tokenExpiration) {
-    return accessToken;
-  }
-  
-  console.log("🔑 Solicitando nuevo pase VIP a Mercado Libre...");
-  try {
-    const response = await axios.post('https://api.mercadolibre.com/oauth/token', null, {
-      params: {
-        grant_type: 'client_credentials',
-        client_id: APP_ID,
-        client_secret: SECRET
-      }
-    });
-    
-    accessToken = response.data.access_token;
-    // El token dura 6 horas, le restamos 5 minutos por seguridad
-    tokenExpiration = Date.now() + (response.data.expires_in - 300) * 1000; 
-    console.log("✅ Pase VIP obtenido exitosamente.");
-    return accessToken;
-  } catch (error) {
-    console.error("❌ Error obteniendo el pase VIP:", error.response?.data || error.message);
-    throw new Error("No se pudo obtener el token de Mercado Libre");
-  }
-}
+// 🔑 Tu Llave Maestra de Apify
+const const APIFY_TOKEN = process.env.APIFY_TOKEN; 
+const client = new ApifyClient({ token: APIFY_TOKEN });
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor Oficial ML Developer V26 - Activo");
+  res.send("🚀 [FIFER] Motor de Extracción Apify V27 - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [FIFER] Entrando por la puerta principal para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [FIFER] Solicitando inquilinos vía Apify para: ${categoryId}`);
 
   try {
-    // 1. Conseguimos el pase VIP
-    const token = await getAccessToken();
-
-    // 2. Llamada a la API oficial con nuestra credencial
-    const mlApiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
+    console.log("🚜 Retroexcavadora trabajando (puede tardar 10-30 segundos)...");
     
-    const response = await axios.get(mlApiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}` // Mostramos la placa al guardia
-      },
-      timeout: 15000
+    // Configuramos la tarea para el Web Scraper de Apify
+    const run = await client.actor("apify/web-scraper").call({
+        startUrls: [{ url: `https://listado.mercadolibre.cl/_CategoryId_${categoryId}` }],
+        useApifyProxy: true,
+        apifyProxyGroups: ["RESIDENTIAL"], // 🛡️ Esto es lo que rompe el bloqueo de Mercado Libre
+        pageFunction: `
+            async function pageFunction(context) {
+                const $ = context.jQuery;
+                const products = [];
+                // Buscamos los contenedores de ML
+                $('.ui-search-result__wrapper, .poly-card').each((i, el) => {
+                    if (products.length >= 3) return false; // Solo traemos 3 para probar
+                    const card = $(el);
+                    const link = card.find('a').attr('href') || "";
+                    if (link.includes('articulo.mercadolibre.cl')) {
+                        const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\\./g, '');
+                        products.push({
+                            id: link.match(/MLC-?(\\d+)/)?.[0].replace('-', '') || \`REF-\${i}\`,
+                            title: card.find('h2, h3').first().text().trim(),
+                            price: parseInt(priceStr) || 0,
+                            permalink: link.split('#')[0].split('?')[0],
+                            thumbnail: card.find('img').first().attr('data-src') || card.find('img').first().attr('src') || ""
+                        });
+                    }
+                });
+                return products;
+            }
+        `
     });
 
-    const rawResults = response.data.results || [];
-    
-    // 3. Limpiamos los datos para entregarlos a tu app
-    const products = rawResults.slice(0, 3).map(item => ({
-      id: item.id,
-      title: item.title,
-      price: item.price,
-      permalink: item.permalink,
-      thumbnail: item.thumbnail?.replace("-I.jpg", "-O.jpg") // Alta calidad
-    }));
+    console.log("📥 Descargando resultados desde Apify...");
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+    const products = items.length > 0 ? items[0] : [];
 
     if (products.length === 0) {
-       console.log("⚠️ Búsqueda exitosa, pero la categoría no tiene inquilinos.");
-       return res.json({ results: [], status: "empty" });
+       console.log("⚠️ La faena terminó pero el terreno estaba vacío (Posible captcha duro).");
+       return res.json({ results: [] });
     }
 
-    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos obtenidos.`);
+    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos listos para la app.`);
     res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en la extracción oficial:", err.response?.data || err.message);
-    res.status(500).json({ 
-      error: "Colapso en la API Oficial", 
-      details: err.response?.data || err.message 
-    });
+    console.error("❌ Fallo en la maquinaria:", err.message);
+    res.status(500).json({ error: "Error en la faena", details: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Oficial en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Apify en puerto ${PORT}`));
