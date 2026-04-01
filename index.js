@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const cheerio = require('cheerio');
 
 const app = express();
 app.use(cors());
@@ -9,56 +10,69 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor de Infiltración V16 - Blindaje Total");
+  res.send("🚀 [Referidos] Motor de Extracción Forense V17 - Online");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Operación de alta presión para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Iniciando peritaje de alta visibilidad: ${categoryId}`);
 
-  // TÉCNICA: URL de búsqueda directa con parámetros de orden (más natural que la categoría pura)
-  const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas/_OrderId_PRICE_NoIndex_True`;
+  // URL de búsqueda directa, evitamos el ID técnico para no levantar sospechas
+  const targetUrl = `https://listado.mercadolibre.cl/mascotas`;
   
-  // ACTIVAMOS: render=true + session_number (para que ScraperAPI simule un navegador real con JS)
-  // Esto es vital para saltar el popup de "Elegir Comuna"
-  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true&render=true&session_number=${Math.floor(Math.random() * 5000)}`;
+  // 💎 LA LLAVE MAESTRA:
+  // render=true + wait_until (espera a que el JS termine) 
+  // + premium (IP residencial chilena)
+  const scraperApiUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true&render=true&wait_until=networkidle0`;
 
   try {
-    const response = await axios.get(tunnelUrl, { timeout: 60000 });
-    const html = response.data;
+    // Aumentamos el timeout a 90 segundos porque esta carga es pesada
+    const response = await axios.get(scraperApiUrl, { timeout: 90000 });
+    const $ = cheerio.load(response.data);
+    
+    console.log(`📌 Título capturado: ${$('title').text()}`);
 
-    // 🕵️‍♂️ BÚSQUEDA POR ADN: Buscamos el JSON oculto que ML siempre carga al final
-    // Es el único dato que no pueden ocultar porque es el que usa su propia web para mostrar la grilla
-    const regex = /"results":\s*(\[{"id":"MLC[\s\S]*?}\])\s*/;
-    const match = html.match(regex);
+    const products = [];
 
-    if (!match) {
-      console.log("⚠️ Escudo activo. ML no entregó el JSON de resultados.");
-      // Enviamos el título para saber en qué habitación estamos atrapados
-      const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || "Sin Título";
-      return res.json({ results: [], status: "blocked", location: title });
+    // Buscamos en cualquier contenedor de producto (clásico o nuevo)
+    $('.ui-search-result__wrapper, .poly-card, .ui-search-layout__item').each((i, el) => {
+      if (products.length >= 3) return false;
+
+      const card = $(el);
+      const link = card.find('a').attr('href') || "";
+      
+      // Solo si es un link de producto real
+      if (link.includes('articulo.mercadolibre.cl')) {
+        const title = card.find('h1, h2, h3').first().text().trim();
+        const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
+        const img = card.find('img').first().attr('data-src') || card.find('img').first().attr('src');
+
+        products.push({
+          id: link.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `REF-${i}`,
+          title: title,
+          price: parseInt(priceStr),
+          permalink: link.split('#')[0].split('?')[0],
+          thumbnail: img || ""
+        });
+      }
+    });
+
+    if (products.length === 0) {
+      console.log("⚠️ El peritaje no encontró productos. ML entregó un cascarón.");
+    } else {
+      console.log(`✅ [Referidos] ¡Viga instalada! ${products.length} productos obtenidos.`);
     }
-
-    const rawResults = JSON.parse(match[1]);
-    const top3 = rawResults.slice(0, 3).map(item => ({
-      id: item.id,
-      title: item.title,
-      price: item.price,
-      permalink: item.permalink,
-      thumbnail: item.thumbnail
-    }));
-
-    console.log(`✅ [Referidos] ¡INFILTRACIÓN EXITOSA! ${top3.length} productos capturados.`);
-    res.json({ results: top3 });
+    
+    res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en el túnel:", err.message);
-    res.status(500).json({ error: "Error de conexión", detail: err.message });
+    console.error("❌ Error en la faena:", err.message);
+    res.status(500).json({ error: "Fallo de conexión profunda", details: err.message });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 [Referidos] API encendida en puerto ${PORT}`);
+  console.log(`🚀 [Referidos] Escáner V17 operativo en puerto ${PORT}`);
 });
