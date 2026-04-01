@@ -9,52 +9,41 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor de Minería de Datos - Online");
+  res.send("🚀 [Referidos] Escáner de Datos V6 - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Minando datos de la categoría: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Escaneando frecuencia de categoría: ${categoryId}`);
 
   const targetUrl = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
-  
-  // Usamos el túnel estándar de ScraperAPI (más rápido y estable para minería)
   const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl`;
 
   try {
     const response = await axios.get(tunnelUrl, { timeout: 45000 });
     const html = response.data;
 
-    // ⛏️ MINERÍA: Buscamos el objeto JSON que ML esconde en el código
-    const jsonKey = 'window.__PRELOADED_STATE__ = ';
-    const startIndex = html.indexOf(jsonKey);
-    
-    if (startIndex === -1) {
-      console.log("⚠️ No se encontró el bloque de datos. ML aplicó un escudo de fase.");
-      return res.json({ results: [], message: "Escudo detectado" });
+    // 🔍 BUSCADOR DE FRECUENCIAS: Buscamos cualquier JSON que contenga los resultados
+    // ML suele envolver esto en un script que contiene "results":[{
+    const regex = /"results":\s*(\[[\s\S]*?\])\s*,\s*"sort"/; 
+    const match = html.match(regex);
+
+    if (!match) {
+      console.log("⚠️ El escáner no detectó la firma de datos. Probando Plan B...");
+      // Plan B: Buscar por el ID de la categoría dentro del HTML
+      const fallbackRegex = new RegExp(`"results":\\s*(\\[[\\s\\S]*?${categoryId}[\\s\\S]*?\\])`);
+      const secondMatch = html.match(fallbackRegex);
+      
+      if (!secondMatch) {
+         return res.json({ results: [], status: "bloqueado", message: "Escudo impenetrable por ahora" });
+      }
+      return processResults(JSON.parse(secondMatch[1]), res);
     }
 
-    // Extraemos y limpiamos el JSON
-    const dataPart = html.substring(startIndex + jsonKey.length);
-    const endIndex = dataPart.indexOf(';</script>');
-    const rawJson = dataPart.substring(0, endIndex);
-    const fullData = JSON.parse(rawJson);
-
-    // Navegamos por el laberinto del JSON oficial de ML
-    const results = fullData.initialState.results || [];
-    
-    const top3 = results.slice(0, 3).map(item => ({
-      id: item.id,
-      title: item.title,
-      price: item.price,
-      permalink: item.permalink,
-      thumbnail: item.thumbnail
-    }));
-
-    console.log(`✅ [Referidos] ¡MINA ENCONTRADA! ${top3.length} productos extraídos.`);
-    res.json({ results: top3 });
+    const results = JSON.parse(match[1]);
+    processResults(results, res);
 
   } catch (err) {
     console.error("❌ Fallo en la excavación:", err.message);
@@ -62,6 +51,20 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
+// Función auxiliar para limpiar y enviar los datos
+function processResults(results, res) {
+  const top3 = results.slice(0, 3).map(item => ({
+    id: item.id,
+    title: item.title,
+    price: item.price || (item.installments ? item.installments.amount * item.installments.quantity : 0),
+    permalink: item.permalink,
+    thumbnail: item.thumbnail
+  }));
+
+  console.log(`✅ [Referidos] ¡ORO ENCONTRADO! ${top3.length} productos capturados.`);
+  res.json({ results: top3 });
+}
+
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 [Referidos] Escáner activo en puerto ${PORT}`);
+  console.log(`🚀 [Referidos] Escáner en puerto ${PORT}`);
 });
