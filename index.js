@@ -6,8 +6,8 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-// 🔑 Tu Llave Maestra de Apify
-const const APIFY_TOKEN = process.env.APIFY_TOKEN; 
+// 🔑 Tu Llave Maestra de Apify (La tomará de la caja fuerte de Render)
+const APIFY_TOKEN = process.env.APIFY_TOKEN; 
 const client = new ApifyClient({ token: APIFY_TOKEN });
 
 app.get('/', (req, res) => {
