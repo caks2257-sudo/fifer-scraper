@@ -4,31 +4,29 @@ const axios = require('axios');
 
 const app = express();
 app.use(cors());
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Ajustado al puerto de Render
+
+const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 API de Referidos - Conexión ML Oficial");
+  res.send("🚀 [Referidos] API Blindada y Lista");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Accediendo a categoría: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Extrayendo categoría: ${categoryId}`);
 
-  const mlApiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}`;
+  // La URL oficial de ML, pero la pasaremos por el túnel de ScraperAPI
+  const mlTargetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}`;
+  const scraperApiUrl = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(mlTargetUrl)}&country_code=cl`;
 
   try {
-    // 🛡️ AGREGAMOS HEADERS: Esto evita el Error 403
-    const response = await axios.get(mlApiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
-
-    const items = response.data.results;
-
-    // Mapeamos los 3 mejores productos
+    const response = await axios.get(scraperApiUrl);
+    
+    // Si la respuesta es exitosa, mapeamos los 3 primeros
+    const items = response.data.results || [];
     const top3 = items.slice(0, 3).map(item => ({
       id: item.id,
       title: item.title,
@@ -37,18 +35,13 @@ app.get('/scrape', async (req, res) => {
       thumbnail: item.thumbnail
     }));
 
-    console.log(`✅ [Referidos] ${top3.length} productos obtenidos con éxito.`);
+    console.log(`✅ [Referidos] Éxito: ${top3.length} productos capturados.`);
     res.json({ results: top3 });
 
   } catch (err) {
-    // Si ML se pone terco, imprimimos el error real para debuguear
-    console.error("❌ Error en la conexión oficial:", err.response ? err.response.status : err.message);
-    res.status(500).json({ 
-      error: "Error al conectar con ML", 
-      details: err.message,
-      status: err.response ? err.response.status : null 
-    });
+    console.error("❌ Error en túnel blindado:", err.message);
+    res.status(500).json({ error: "Error de conexión blindada", detail: err.message });
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 API Referidos activa en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor encendido en puerto ${PORT}`));
