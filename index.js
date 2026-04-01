@@ -1,10 +1,7 @@
-// IMPORTAMOS EL CAMUFLAJE
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-const express = require('express');
-// ... (deja el resto de tu código exactamente igual hacia abajo)
 const express = require('express');
 const cors = require('cors');
 const app = express();
@@ -12,12 +9,10 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 3000;
 
-// 1. RUTA RAÍZ: Fundamental para que Render sepa que el servidor está vivo (Health Check)
 app.get('/', (req, res) => {
-  res.send("🚀 Servidor Scraper Activo y Esperando Órdenes");
+  res.send("🚀 Servidor Scraper Sigiloso Activo");
 });
 
-// Función para simular que un humano baja por la página (Scrolleo)
 async function autoScroll(page) {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
@@ -40,43 +35,52 @@ app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ Iniciando asalto de precisión en: ${categoryId}`);
+  console.log(`🕵️‍♂️ Iniciando asalto sigiloso a: ${categoryId}`);
   
   let browser;
   try {
-    // 2. BANDERAS DE NUBE: Añadimos parámetros críticos para evitar que Render se quede sin memoria RAM
+    // ⚙️ BANDERAS DE EXTREMO AHORRO DE MEMORIA RAM
     browser = await puppeteer.launch({
       headless: "new",
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', // <--- EVITA CRASHES DE MEMORIA EN RENDER
-        '--disable-gpu'
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process' // <--- MAGIA PARA SERVIDORES DE 512MB
       ]
     });
 
     const page = await browser.newPage();
+
+    // 🛡️ BLOQUEO DE IMÁGENES Y CSS (Ahorra un 80% de RAM y carga rapidísimo)
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const type = req.resourceType();
+      if (['image', 'stylesheet', 'font', 'media'].includes(type)) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
     
-    // 3. CAMUFLAJE AVANZADO: Le decimos a ML que nuestro navegador está configurado en Español Chile
+    // Camuflaje de idioma
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'es-CL,es;q=0.9,en;q=0.8'
     });
     
-    // Disfraz de Chrome real actualizado
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
     
     const url = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
-    console.log(`🔗 Navegando a: ${url}`);
+    console.log(`🔗 Navegando ligero a: ${url}`);
     
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // Bajamos por la página para activar el Lazy Load de ML
-    console.log("🖱️ Haciendo scroll para cargar imágenes y productos...");
+    console.log("🖱️ Scroll fantasma...");
     await autoScroll(page);
 
-    // EXTRACCIÓN CON BISTURÍ DE CIRUJANO
     const products = await page.evaluate(() => {
-      // Buscamos cualquier link que contenga un ID de MLC
       const links = Array.from(document.querySelectorAll('a'))
         .filter(a => a.href.includes('articulo.mercadolibre.cl/MLC'));
 
@@ -90,12 +94,11 @@ app.get('/scrape', async (req, res) => {
         if (seen.has(cleanLink)) continue;
         seen.add(cleanLink);
 
-        // Subimos al contenedor padre para buscar el precio y título
-        // ML usa estructuras complejas, buscamos el ancestro más común
         const card = a.closest('.ui-search-result__wrapper') || a.closest('.poly-card') || a.parentElement;
         
         const title = card.querySelector('h2, h3, .ui-search-item__title')?.innerText.trim() || "Producto ML";
         const priceStr = card.querySelector('.andes-money-amount__fraction')?.innerText.replace(/\./g, '') || "0";
+        // Buscamos la imagen aunque nosotros no la hayamos renderizado visualmente
         const img = card.querySelector('img');
         
         results.push({
@@ -112,18 +115,18 @@ app.get('/scrape', async (req, res) => {
     await browser.close();
 
     if (products.length === 0) {
-      console.log("⚠️ No se pillaron productos. Probablemente ML nos tiró un reto de seguridad.");
+      console.log("⚠️ El escudo de Mercado Libre resistió. No hay productos.");
     } else {
-      console.log(`✅ ¡CONQUISTA! ${products.length} productos reales capturados.`);
+      console.log(`✅ ¡ÉXITO! ${products.length} productos capturados.`);
     }
     
     res.json({ results: products });
 
   } catch (err) {
     if (browser) await browser.close();
-    console.error("❌ Fallo en la matriz:", err.message);
+    console.error("❌ Colapso controlado:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Scraper de Guerrilla en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Scraper Ligero en puerto ${PORT}`));
