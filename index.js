@@ -10,35 +10,60 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Rompehielos Anti-Bot V23 - Activo");
+  res.send("🚀 [Referidos] Motor Blindado V24 (Asalto Dual) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Lanzando Rompehielos (Antibot) para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Iniciando Asalto Dual para: ${categoryId}`);
 
-  // Volvemos a la web pública, es la única ruta viable sin Token OAuth
-  const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas`;
-
-  // 💣 LA CARGA EXPLOSIVA: antibot=true
-  // Esto obliga a ScraperAPI a usar su motor de resolución de CAPTCHAs.
-  // Consumirá más créditos de tu plan, pero es la herramienta diseñada para este muro.
-  const tunnelUrl = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&antibot=true&premium=true&country_code=cl`;
+  // ==========================================
+  // PLAN A: API Oficial con Pool Residencial Global
+  // ==========================================
+  // LA CLAVE: Sin 'country_code'. Usamos la red residencial mundial de ScraperAPI.
+  const apiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
+  const tunnelApi = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(apiUrl)}&premium=true`;
 
   try {
-    // ⏳ TIEMPO EXTENDIDO: Resolver un CAPTCHA de DataDome toma tiempo. Le damos 60 segundos.
-    console.log("⏳ Esperando que ScraperAPI resuelva el CAPTCHA (Puede tardar hasta 60s)...");
-    const response = await axios.get(tunnelUrl, { timeout: 60000 });
+    console.log("🚁 [Plan A] Intentando extraer JSON puro vía pool global...");
+    // Tiempo corto para que si falla, salte rápido al Plan B
+    const responseApi = await axios.get(tunnelApi, { timeout: 20000 });
     
-    const html = response.data;
-    const $ = cheerio.load(html);
+    if (responseApi.data && responseApi.data.results) {
+      const products = responseApi.data.results.slice(0, 3).map(item => ({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        permalink: item.permalink,
+        thumbnail: item.thumbnail?.replace("-I.jpg", "-O.jpg")
+      }));
+      
+      if (products.length > 0) {
+        console.log(`✅ [Referidos] ¡BÓVEDA API VULNERADA! ${products.length} productos listos.`);
+        return res.json({ results: products });
+      }
+    }
+  } catch (errApi) {
+    console.log(`⚠️ [Plan A] El guardia bloqueó la API (${errApi.message}). Desplegando El Tanque...`);
+  }
 
-    console.log(`📌 Título tras el muro: ${$('title').text()}`);
+  // ==========================================
+  // PLAN B: El Tanque (Antibot + Render)
+  // ==========================================
+  // Si la API falla, atacamos la web forzando CAPTCHA (antibot) y ejecución JS (render)
+  const webUrl = `https://listado.mercadolibre.cl/animales-mascotas`;
+  const tunnelWeb = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(webUrl)}&premium=true&antibot=true&render=true`;
+
+  try {
+    console.log("🚜 [Plan B] Desplegando El Tanque (Render + Antibot)... Puede tardar 60s.");
+    const responseWeb = await axios.get(tunnelWeb, { timeout: 70000 });
+    const $ = cheerio.load(responseWeb.data);
+    
+    console.log(`📌 Título tras la demolición visual: ${$('title').text()}`);
 
     let products = [];
-
     $('.ui-search-result__wrapper, .poly-card').each((i, el) => {
       if (products.length >= 3) return false;
       const card = $(el);
@@ -58,18 +83,18 @@ app.get('/scrape', async (req, res) => {
       }
     });
 
-    if (products.length === 0) {
-      console.log("⚠️ El Rompehielos cruzó, pero no vio productos. ML entregó un falso positivo.");
-      return res.json({ results: [], status: "empty_shell" });
+    if (products.length > 0) {
+      console.log(`✅ [Referidos] ¡TANQUE EXITOSO! ${products.length} productos obtenidos.`);
+      return res.json({ results: products });
+    } else {
+      console.log("❌ [Plan B] El Tanque cruzó, encendió la luz, pero el HTML vino sin datos.");
+      return res.status(500).json({ error: "Bloqueo Absoluto", status: "empty_shell" });
     }
 
-    console.log(`✅ [Referidos] ¡MURALLA DESTRUIDA! ${products.length} productos obtenidos.`);
-    res.json({ results: products });
-
-  } catch (err) {
-    console.error("❌ Fallo del Rompehielos:", err.message);
-    res.status(500).json({ error: "Tiempo agotado o bloqueo impenetrable", details: err.message });
+  } catch (errWeb) {
+    console.error("❌ Fallo general de sistemas:", errWeb.message);
+    res.status(500).json({ error: "Colapso Estructural", details: errWeb.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor V23 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor V24 en puerto ${PORT}`));
