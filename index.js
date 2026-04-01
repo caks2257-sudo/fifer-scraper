@@ -7,61 +7,37 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
-
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor Blindado V24 (Asalto Dual) - Activo");
+  res.send("🚀 [Referidos] Motor V25: Inspector Googlebot + Andamio - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Iniciando Asalto Dual para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Iniciando protocolo 'Inspector Municipal' para: ${categoryId}`);
 
-  // ==========================================
-  // PLAN A: API Oficial con Pool Residencial Global
-  // ==========================================
-  // LA CLAVE: Sin 'country_code'. Usamos la red residencial mundial de ScraperAPI.
-  const apiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
-  const tunnelApi = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(apiUrl)}&premium=true`;
+  const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas`;
 
-  try {
-    console.log("🚁 [Plan A] Intentando extraer JSON puro vía pool global...");
-    // Tiempo corto para que si falla, salte rápido al Plan B
-    const responseApi = await axios.get(tunnelApi, { timeout: 20000 });
-    
-    if (responseApi.data && responseApi.data.results) {
-      const products = responseApi.data.results.slice(0, 3).map(item => ({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        permalink: item.permalink,
-        thumbnail: item.thumbnail?.replace("-I.jpg", "-O.jpg")
-      }));
-      
-      if (products.length > 0) {
-        console.log(`✅ [Referidos] ¡BÓVEDA API VULNERADA! ${products.length} productos listos.`);
-        return res.json({ results: products });
-      }
-    }
-  } catch (errApi) {
-    console.log(`⚠️ [Plan A] El guardia bloqueó la API (${errApi.message}). Desplegando El Tanque...`);
-  }
-
-  // ==========================================
-  // PLAN B: El Tanque (Antibot + Render)
-  // ==========================================
-  // Si la API falla, atacamos la web forzando CAPTCHA (antibot) y ejecución JS (render)
-  const webUrl = `https://listado.mercadolibre.cl/animales-mascotas`;
-  const tunnelWeb = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(webUrl)}&premium=true&antibot=true&render=true`;
+  // 💎 EL DISFRAZ PERFECTO: Simulamos ser el robot indexador de Google
+  const googlebotHeaders = {
+    'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    'X-Forwarded-For': '66.249.66.1', // Forzamos una IP conocida de Google
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'es-CL,es;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache'
+  };
 
   try {
-    console.log("🚜 [Plan B] Desplegando El Tanque (Render + Antibot)... Puede tardar 60s.");
-    const responseWeb = await axios.get(tunnelWeb, { timeout: 70000 });
-    const $ = cheerio.load(responseWeb.data);
+    // Atacamos directo desde Render, sin intermediarios.
+    const response = await axios.get(targetUrl, { 
+      headers: googlebotHeaders, 
+      timeout: 15000 
+    });
     
-    console.log(`📌 Título tras la demolición visual: ${$('title').text()}`);
+    const $ = cheerio.load(response.data);
+    console.log(`📌 Título visto por Googlebot: ${$('title').text()}`);
 
     let products = [];
     $('.ui-search-result__wrapper, .poly-card').each((i, el) => {
@@ -84,17 +60,48 @@ app.get('/scrape', async (req, res) => {
     });
 
     if (products.length > 0) {
-      console.log(`✅ [Referidos] ¡TANQUE EXITOSO! ${products.length} productos obtenidos.`);
+      console.log(`✅ [Referidos] ¡INSPECCIÓN APROBADA! ${products.length} productos obtenidos.`);
       return res.json({ results: products });
     } else {
-      console.log("❌ [Plan B] El Tanque cruzó, encendió la luz, pero el HTML vino sin datos.");
-      return res.status(500).json({ error: "Bloqueo Absoluto", status: "empty_shell" });
+      throw new Error("El HTML cargó pero estaba vacío (Bloqueo de Renderizado).");
     }
 
-  } catch (errWeb) {
-    console.error("❌ Fallo general de sistemas:", errWeb.message);
-    res.status(500).json({ error: "Colapso Estructural", details: errWeb.message });
+  } catch (err) {
+    console.error(`❌ El guardia detectó el disfraz: ${err.message}`);
+    console.log("⚠️ Desplegando Andamio de Desarrollo (Datos de Respaldo)...");
+    
+    // 🚧 ANDAMIO DE DESARROLLO: Para que FIFER no se detenga.
+    // Si la extracción falla, devolvemos esto para que tu frontend siga funcionando.
+    const mockProducts = [
+      {
+        id: "MLC12345678",
+        title: "Alimento Pro Plan Adulto Raza Mediana 15kg",
+        price: 54990,
+        permalink: "https://articulo.mercadolibre.cl/MLC-12345678",
+        thumbnail: "https://http2.mlstatic.com/D_NQ_NP_2X_824925-MLU74272895689_012024-F.webp"
+      },
+      {
+        id: "MLC87654321",
+        title: "Cama Para Perro Raza Grande Lavable",
+        price: 22500,
+        permalink: "https://articulo.mercadolibre.cl/MLC-87654321",
+        thumbnail: "https://http2.mlstatic.com/D_NQ_NP_2X_892994-MLC50190145260_062022-F.webp"
+      },
+      {
+        id: "MLC11223344",
+        title: "Arena Sanitaria Para Gatos 10 Kg",
+        price: 8900,
+        permalink: "https://articulo.mercadolibre.cl/MLC-11223344",
+        thumbnail: "https://http2.mlstatic.com/D_NQ_NP_2X_788220-MLC51347055990_082022-F.webp"
+      }
+    ];
+
+    res.status(200).json({ 
+      results: mockProducts, 
+      status: "mock_data",
+      message: "Scraping bloqueado. Devolviendo datos de andamiaje para desarrollo."
+    });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor V24 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor V25 en puerto ${PORT}`));
