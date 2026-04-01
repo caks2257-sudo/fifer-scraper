@@ -10,62 +10,47 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] API Blindada V5 - Operativa");
+  res.send("🚀 [Referidos] Sistema de Extracción Operativo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Intento de extracción profunda: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Extrayendo oro de categoría: ${categoryId}`);
 
-  // URL de búsqueda directa, suele ser más "limpia" para el scraper
-  const targetUrl = `https://listado.mercadolibre.cl/${categoryId}`;
+  // LA RUTA MAESTRA: Así es como ML identifica las categorías reales
+  const targetUrl = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
   
-  // ACTIVAMOS render=true para que cargue los precios dinámicos
+  // Usamos el túnel de ScraperAPI con renderizado para asegurar que carguen los precios
   const scraperApiUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&render=true`;
 
   try {
-    const response = await axios.get(scraperApiUrl, { timeout: 60000 });
+    const response = await axios.get(scraperApiUrl, { timeout: 70000 });
     const $ = cheerio.load(response.data);
     
-    // Diagnóstico en consola
-    console.log(`📌 Título de página capturado: ${$('title').text()}`);
+    console.log(`📌 Título real capturado: ${$('title').text()}`);
 
     const products = [];
-    
-    // RED DE ARRASTRE: Buscamos en todos los contenedores posibles de ML (clásico, poly, móvil)
-    const selectors = [
-      '.ui-search-result__wrapper', 
-      '.poly-card', 
-      '.ui-search-layout__item',
-      '.ui-search-result',
-      'li[class*="search-layout__item"]'
-    ];
 
-    $(selectors.join(', ')).each((i, el) => {
+    // Buscamos cualquier elemento que parezca un producto
+    $('.ui-search-result__wrapper, .poly-card, .ui-search-layout__item').each((i, el) => {
       if (products.length >= 3) return false;
 
       const card = $(el);
-      
-      // Buscamos el link (indispensable)
-      const aTag = card.find('a[href*="articulo.mercadolibre.cl/MLC"]').first();
-      const href = aTag.attr('href') || card.find('a').first().attr('href') || "";
+      const aTag = card.find('a').first();
+      const href = aTag.attr('href') || "";
       if (!href) return true;
 
-      // Buscamos el Título (en cualquier h1, h2 o h3)
-      const title = card.find('h1, h2, h3, .ui-search-item__title, .poly-component__title').first().text().trim();
-      
-      // Buscamos el Precio (el número grande)
-      const priceStr = card.find('.andes-money-amount__fraction, .price-tag-fraction').first().text().replace(/\./g, '') || "0";
-      
-      // Buscamos la Imagen
+      // Selectores simplificados al máximo
+      const title = card.find('h1, h2, h3').first().text().trim();
+      const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
       const img = card.find('img').first();
       const imgUrl = img.attr('data-src') || img.attr('src') || "";
 
-      if (title && parseInt(priceStr) > 0) {
+      if (parseInt(priceStr) > 0) {
         products.push({
-          id: href.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `MLC-${i}`,
+          id: href.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `ID-${i}`,
           title: title,
           price: parseInt(priceStr),
           permalink: href.split('#')[0].split('?')[0],
@@ -74,13 +59,15 @@ app.get('/scrape', async (req, res) => {
       }
     });
 
-    console.log(`✅ [Referidos] Resultado final: ${products.length} productos.`);
+    console.log(`✅ [Referidos] Éxito: ${products.length} productos extraídos.`);
     res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en el túnel:", err.message);
-    res.status(500).json({ error: "Fallo de extracción", details: err.message });
+    console.error("❌ Fallo en la faena:", err.message);
+    res.status(500).json({ error: "Error de extracción", details: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 [Referidos] Microservicio en puerto ${PORT}`);
+});
