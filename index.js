@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const cheerio = require('cheerio');
 
 const app = express();
 app.use(cors());
@@ -10,76 +9,60 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Sistema de Emergencia V18 - Activo");
+  res.send("🚀 [Referidos] Motor de Navegación Interna - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Iniciando maniobra de emergencia para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Accediendo por el ducto de navegación: ${categoryId}`);
 
-  // URL de búsqueda común, suele tener la "DOM" de Mercado Libre menos estricta
-  const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas`;
+  // 💎 LA LLAVE MAESTRA: Este es el endpoint interno que usa ML para cargar resultados
+  const targetUrl = `https://www.mercadolibre.cl/navigation/search-results?category=${categoryId}`;
   
-  // 💡 CAMBIO CRÍTICO: 
-  // Quitamos 'render=true' para evitar el Error 500.
-  // Usamos 'premium=true' para IPs residenciales chilenas.
-  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true&session_number=${Math.floor(Math.random() * 9999)}`;
+  // Usamos ScraperAPI como túnel simple (sin renderizado para que sea indetectable)
+  // Forzamos IP de Chile para que no pida selección de país
+  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true`;
 
   try {
-    const response = await axios.get(tunnelUrl, { timeout: 35000 });
-    const $ = cheerio.load(response.data);
-    const html = response.data;
-    
-    console.log(`📌 Título capturado: ${$('title').text()}`);
-
-    let products = [];
-
-    // MODO 1: Escaneo de etiquetas HTML (Cheerio)
-    $('.ui-search-result__wrapper, .poly-card, .ui-search-layout__item').each((i, el) => {
-      if (products.length >= 3) return false;
-      const card = $(el);
-      const link = card.find('a').attr('href') || "";
-      
-      if (link.includes('articulo.mercadolibre.cl')) {
-        const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
-        if (parseInt(priceStr) > 0) {
-          products.push({
-            id: link.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `REF-${i}`,
-            title: card.find('h2, h3').first().text().trim() || "Producto Referidos",
-            price: parseInt(priceStr),
-            permalink: link.split('#')[0].split('?')[0],
-            thumbnail: card.find('img').first().attr('data-src') || card.find('img').first().attr('src') || ""
-          });
-        }
+    const response = await axios.get(tunnelUrl, { 
+      timeout: 30000,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest' // Simulamos ser una petición interna de su web
       }
     });
+    
+    // ML en este endpoint devuelve un JSON gigante con toda la estructura de la página
+    const searchData = response.data;
+    const results = searchData.results || [];
 
-    // MODO 2: Plan B (Si el HTML vino vacío, buscamos el JSON oculto con Regex)
+    const products = results.slice(0, 3).map(item => ({
+      id: item.id,
+      title: item.title?.name || item.title || "Producto Referidos",
+      price: item.price?.amount || item.price || 0,
+      permalink: item.permalink,
+      thumbnail: item.thumbnail
+    }));
+
     if (products.length === 0) {
-      console.log("⚠️ HTML visual vacío, activando escáner de código fuente...");
-      const regex = /"results":\s*(\[{"id":"MLC[\s\S]*?}\])\s*/;
-      const match = html.match(regex);
-      if (match) {
-        const raw = JSON.parse(match[1]);
-        products = raw.slice(0, 3).map(item => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          permalink: item.permalink,
-          thumbnail: item.thumbnail
-        }));
-      }
+      console.log("⚠️ El ducto está seco. ML detectó el movimiento.");
+      // Plan C: Si el JSON interno falla, devolvemos un mensaje de "obra en pausa"
+      return res.json({ 
+        results: [], 
+        status: "under_construction", 
+        message: "ML aplicó bloqueo de región IP. Reintenta en 15 minutos." 
+      });
     }
 
-    console.log(`✅ [Referidos] ¡Operación terminada! ${products.length} productos en el saco.`);
+    console.log(`✅ [Referidos] ¡INFILTRACIÓN EXITOSA! ${products.length} productos en el saco.`);
     res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Error estructural:", err.message);
-    res.status(500).json({ error: "Colapso de red en Referidos", details: err.message });
+    console.error("❌ Fallo en el ducto:", err.message);
+    res.status(500).json({ error: "Error de conexión interna", details: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Escáner V19 en puerto ${PORT}`));
