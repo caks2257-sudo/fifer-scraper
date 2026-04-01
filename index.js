@@ -11,71 +11,52 @@ const APIFY_TOKEN = process.env.APIFY_TOKEN;
 const client = new ApifyClient({ token: APIFY_TOKEN });
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor Híbrido API+Apify V31 - Activo");
+  res.send("🚀 [FIFER] Motor Especialista Saswave V32 - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [FIFER] Perforación directa a la bóveda JSON para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [FIFER] Contratando Especialista 'Saswave' para: ${categoryId}`);
 
   try {
-    // 💡 CAMBIO CRÍTICO: Atacamos la API Oficial pública, NO la página web visual
-    const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
+    // Limpiamos el ID por si viene como "MLC1071" y forzamos una URL de listado muy natural
+    const cleanId = categoryId.replace('MLC', '');
+    const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas/_CategoryId_MLC${cleanId}`;
 
-    console.log("🚜 Enviando retroexcavadora por túnel residencial a la API...");
+    console.log("🚜 El especialista está perforando el muro de DataDome...");
 
-    // Usamos el scraper rápido (cheerio) pero configurado para leer JSON
-    const run = await client.actor("apify/cheerio-scraper").call({
+    // 💡 CAMBIO CRÍTICO: Llamamos al actor de pago-por-resultado que esquiva ML internamente
+    const run = await client.actor("saswave/mercadolibre-product-scraper").call({
         startUrls: [{ url: targetUrl }],
-        useApifyProxy: true,
-        apifyProxyGroups: ["RESIDENTIAL"],
-        additionalMimeTypes: ["application/json"], // Le decimos que no espere HTML
-        pageFunction: `
-            async function pageFunction(context) {
-                const { json, body } = context;
-                
-                // Aseguramos la captura de los datos puros
-                let data = json;
-                if (!data && body) {
-                    try { data = JSON.parse(body.toString()); } catch(e) {}
-                }
-
-                if (!data || !data.results) {
-                    return { productsFound: 0, products: [], raw: body ? body.toString().substring(0, 100) : "Vacío" };
-                }
-
-                // Mapeamos los datos limpios para tu App FIFER
-                const products = data.results.slice(0, 3).map((item, i) => ({
-                    id: item.id || \`REF-\${i}\`,
-                    title: item.title || "Producto FIFER",
-                    price: item.price || 0,
-                    permalink: item.permalink || "",
-                    thumbnail: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : ""
-                }));
-
-                return { productsFound: products.length, products: products };
-            }
-        `
+        maxItems: 3 // Solo traemos 3 inquilinos para probar rápido
     });
 
-    console.log("📥 Analizando botín del túnel...");
+    console.log("📥 Recibiendo informe del especialista...");
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
-    const data = items.length > 0 ? items[0] : null;
 
-    if (!data || data.productsFound === 0) {
-       console.log(`⚠️ La bóveda respondió, pero sin productos. Raw: ${data ? data.raw : "N/A"}`);
-       return res.json({ results: [], status: "blocked_or_empty" });
+    if (!items || items.length === 0) {
+       console.log("⚠️ El especialista volvió con las manos vacías.");
+       return res.json({ results: [], status: "empty" });
     }
 
-    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${data.productsFound} productos obtenidos.`);
-    res.json({ results: data.products });
+    // Adaptamos los resultados al formato exacto que tu plataforma FIFER necesita
+    const products = items.slice(0, 3).map((item, i) => ({
+        id: item.id || item.itemId || item.productId || `REF-${i}`,
+        title: item.title || item.name || "Producto FIFER",
+        price: item.price || item.currentPrice || 0,
+        permalink: item.url || item.link || targetUrl,
+        thumbnail: item.picture || item.thumbnail || item.imageUrl || item.image || ""
+    }));
+
+    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos listos.`);
+    res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en la perforación:", err.message);
+    console.error("❌ Fallo en el subcontrato:", err.message);
     res.status(500).json({ error: "Error en la faena", details: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V31 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V32 en puerto ${PORT}`));
