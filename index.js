@@ -1,75 +1,64 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const cheerio = require('cheerio');
 
 const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
-
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor de Búsqueda Híbrido V20 - Online");
+  res.send("🚀 [Referidos] Motor de Proxies Públicos V21 - Online");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Iniciando búsqueda de alta fidelidad: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Iniciando Operación Puente Aéreo para: ${categoryId}`);
 
-  // TÉCNICA: Usamos una URL de búsqueda 'limpia' con el filtro de categoría inyectado.
-  // Esto simula a un usuario buscando en la barra de arriba.
-  const targetUrl = `https://listado.mercadolibre.cl/animales-mascotas/_NoIndex_True_OrderId_PRICE`;
-  
-  // Usamos ScraperAPI con IP de Chile y una sesión aleatoria.
-  // IMPORTANTE: Quitamos 'render=true' para evitar el 500 y ganar velocidad.
-  const tunnelUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true&session_number=${Math.floor(Math.random() * 8888)}`;
+  // LA BÓVEDA: API Oficial de ML (Datos puros, sin HTML, sin Datadome pesado)
+  const mlApiUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
 
-  try {
-    const response = await axios.get(tunnelUrl, { timeout: 35000 });
-    const $ = cheerio.load(response.data);
-    
-    console.log(`📌 Título de zona capturado: ${$('title').text()}`);
+  // 🚁 LOS HELICÓPTEROS: 3 proxies públicos diferentes para evadir el bloqueo a Render
+  const proxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(mlApiUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(mlApiUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(mlApiUrl)}`
+  ];
 
-    const products = [];
-
-    // 🕵️‍♂️ BÚSQUEDA DE ESTRUCTURA: Buscamos cualquier enlace que huela a producto MLC
-    $('a[href*="articulo.mercadolibre.cl/MLC"]').each((i, el) => {
-      if (products.length >= 3) return false;
-
-      const link = $(el).attr('href').split('#')[0].split('?')[0];
-      const card = $(el).closest('li, div[class*="item"], div[class*="card"]');
+  for (const proxy of proxies) {
+    const proxyName = proxy.split('/')[2]; // Sacamos el nombre para el log
+    try {
+      console.log(`🚁 Intentando infiltración vía: ${proxyName}...`);
       
-      // Selectores ultra-genéricos (buscamos por 'forma' de dato, no por nombre de clase)
-      const title = card.find('h2, h3').first().text().trim();
-      const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '');
-      const img = card.find('img').first().attr('data-src') || card.find('img').first().attr('src');
+      // Hacemos la petición a través del helicóptero actual
+      const response = await axios.get(proxy, { timeout: 15000 });
+      
+      // Si la API oficial nos responde con la lista de productos...
+      if (response.data && response.data.results && response.data.results.length > 0) {
+        
+        const products = response.data.results.slice(0, 3).map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          permalink: item.permalink,
+          thumbnail: item.thumbnail.replace("-I.jpg", "-O.jpg") // Mejoramos la calidad de la imagen
+        }));
 
-      if (title && parseInt(priceStr) > 0) {
-        products.push({
-          id: link.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `ID-${i}`,
-          title: title,
-          price: parseInt(priceStr),
-          permalink: link,
-          thumbnail: img || ""
-        });
+        console.log(`✅ [Referidos] ¡ÉXITO TOTAL! Datos rescatados gracias a ${proxyName}`);
+        return res.json({ results: products });
       }
-    });
-
-    if (products.length === 0) {
-      console.log("⚠️ La red salió vacía. El guardia de ML sigue bloqueando el paso.");
-    } else {
-      console.log(`✅ [Referidos] ¡VIGA INSTALADA! ${products.length} productos obtenidos.`);
+    } catch (err) {
+      console.log(`⚠️ Helicóptero ${proxyName} derribado (Bloqueado). Saltando al siguiente...`);
     }
-    
-    res.json({ results: products });
-
-  } catch (err) {
-    console.error("❌ Fallo estructural:", err.message);
-    res.status(500).json({ error: "Fallo de conexión", details: err.message });
   }
+
+  // Si llegamos aquí, los 3 proxies fallaron (muy raro)
+  console.log("❌ Operación abortada. Todos los puentes aéreos fallaron.");
+  res.status(500).json({ 
+    error: "Bloqueo estructural masivo", 
+    details: "Mercado Libre bloqueó incluso los servidores puente públicos." 
+  });
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [Referidos] Motor encendido en puerto ${PORT}`));
