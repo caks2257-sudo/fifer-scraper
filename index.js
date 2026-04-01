@@ -7,7 +7,6 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 3000;
 
-// 🔑 TU LLAVE MAESTRA DE SCRAPERAPI
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
@@ -22,39 +21,46 @@ app.get('/scrape', async (req, res) => {
 
   const targetUrl = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
 
-  // Configuración de ScraperAPI: Renderizamos el JS y simulamos estar en Chile (country_code=cl)
-  const scraperApiUrl = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true&country_code=cl`;
+  // QUITAMOS render=true (ML ya trae datos en HTML puro) y AÑADIMOS premium=true
+  const scraperApiUrl = `http://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true`;
 
   try {
     console.log(`🔗 Enviando grúa de ScraperAPI a: ${targetUrl}`);
     
-    // Le damos hasta 60 segundos porque ScraperAPI a veces tarda en burlar los CAPTCHAs
     const response = await axios.get(scraperApiUrl, { timeout: 60000 }); 
     
     console.log("📄 HTML recibido, analizando datos...");
     const $ = cheerio.load(response.data);
     
+    // 📌 EL CHIVATO: Imprimimos el título de la página vista
+    const pageTitle = $('title').text();
+    console.log(`📌 Título de la página vista por ScraperAPI: ${pageTitle}`);
+
     const products = [];
     const seen = new Set();
 
-    $('a').each((i, el) => {
-      if (products.length >= 3) return false; // Rompe el ciclo si ya tenemos 3
+    // Búsqueda tipo bulldozer: Buscamos TODOS los enlaces de artículos MLC
+    $('a[href*="articulo.mercadolibre.cl/MLC"]').each((i, el) => {
+      if (products.length >= 3) return false; // Parar al tener 3
 
       const href = $(el).attr('href');
-      if (href && href.includes('articulo.mercadolibre.cl/MLC')) {
-        const cleanLink = href.split('#')[0].split('?')[0];
-        if (seen.has(cleanLink)) return true; // Continúa al siguiente si está repetido
-        seen.add(cleanLink);
+      const cleanLink = href.split('#')[0].split('?')[0];
+      
+      if (seen.has(cleanLink)) return true;
+      seen.add(cleanLink);
 
-        // Buscamos el contenedor padre del producto
-        const card = $(el).closest('.ui-search-result__wrapper, .poly-card, .ui-search-layout__item');
-        if (card.length === 0) return true;
+      // Subimos al contenedor de la tarjeta (buscamos cualquier 'li' o 'div' contenedor)
+      const card = $(el).closest('li, .poly-card, .ui-search-layout__item');
+      
+      // Extracción agresiva
+      let title = card.find('h2, h3').first().text().trim();
+      if (!title) title = $(el).text().trim() || "Producto ML"; // Plan B para el título
 
-        const title = card.find('h2, h3, .ui-search-item__title').first().text().trim() || "Producto ML";
-        const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
-        const img = card.find('img').first();
-        const imgUrl = img.attr('data-src') || img.attr('src') || "";
+      const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
+      const imgUrl = card.find('img').attr('data-src') || card.find('img').attr('src') || "";
 
+      // Solo guardamos si logramos pescar un precio o título válido
+      if (title !== "Producto ML" || parseInt(priceStr) > 0) {
         products.push({
           id: cleanLink.match(/MLC-?(\d+)/)?.[0].replace('-', '') || "MLC-TEMP",
           title: title,
@@ -66,15 +72,15 @@ app.get('/scrape', async (req, res) => {
     });
 
     if (products.length === 0) {
-      console.log("⚠️ ScraperAPI pasó, pero no logramos leer los productos. ML pudo haber cambiado su estructura.");
+      console.log("⚠️ ScraperAPI pasó, pero la red salió vacía. Revisa el Título impreso arriba.");
     } else {
-      console.log(`✅ ¡ÉXITO INDUSTRIAL! ${products.length} productos capturados de forma segura.`);
+      console.log(`✅ ¡ÉXITO INDUSTRIAL! ${products.length} productos capturados.`);
     }
     
     res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en la conexión con ScraperAPI:", err.message);
+    console.error("❌ Fallo en la conexión:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
