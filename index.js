@@ -10,72 +10,73 @@ const PORT = process.env.PORT || 10000;
 const SCRAPER_API_KEY = 'f4857937a4e4a88c33bb055d85f48fa2';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [Referidos] Motor de Extracción Híbrido - Activo");
+  res.send("🚀 [Referidos] Motor de Infiltración Silenciosa - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [Referidos] Operación de búsqueda internacional: ${categoryId}`);
+  console.log(`🕵️‍♂️ [Referidos] Iniciando infiltración en categoría: ${categoryId}`);
 
-  // Usamos una URL de búsqueda por palabra clave, que es más "permisiva" que la de categoría
-  const targetUrl = `https://listado.mercadolibre.cl/mascotas-${categoryId}`;
+  // URL de categoría pura
+  const targetUrl = `https://listado.mercadolibre.cl/_CategoryId_${categoryId}`;
   
-  // CAMBIO TÁCTICO: country_code=us (IP de EE.UU.) + render=false (para evitar detección de headless)
-  const scraperApiUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=us&premium=true`;
+  // 💡 CAMBIO TÁCTICO: Quitamos 'render=true' y 'device_type'. 
+  // Queremos que ML piense que somos un servidor de Google indexando contenido.
+  const scraperApiUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&country_code=cl&premium=true`;
 
   try {
-    const response = await axios.get(scraperApiUrl, { timeout: 45000 });
-    const $ = cheerio.load(response.data);
+    const response = await axios.get(scraperApiUrl, { 
+      timeout: 30000,
+      headers: { 'Accept-Encoding': 'gzip, deflate, br' } 
+    });
     
-    console.log(`📌 Título capturado en la bóveda: ${$('title').text()}`);
-
+    const $ = cheerio.load(response.data);
     const products = [];
+    const seenLinks = new Set();
 
-    // 🕵️‍♂️ MÉTODO DE EXTRACCIÓN POR PROXIMIDAD (EL MÁS FUERTE)
-    // Buscamos todos los enlaces de productos
-    $('a[href*="articulo.mercadolibre.cl/MLC"]').each((i, el) => {
+    console.log(`📌 Título de la página: ${$('title').text()}`);
+
+    // 🕵️‍♂️ BÚSQUEDA POR ADN: Buscamos enlaces que contengan 'articulo.mercadolibre.cl/MLC'
+    $('a').each((i, el) => {
       if (products.length >= 3) return false;
 
-      const link = $(el).attr('href');
-      const cleanLink = link.split('#')[0].split('?')[0];
+      const href = $(el).attr('href') || "";
+      if (href.includes('articulo.mercadolibre.cl/MLC')) {
+        const cleanLink = href.split('#')[0].split('?')[0];
+        
+        if (seenLinks.has(cleanLink)) return;
+        seenLinks.add(cleanLink);
 
-      // Buscamos el contenedor más cercano que tenga un precio
-      const parent = $(el).closest('div, li, section');
-      
-      // Buscamos el precio con una expresión regular sobre el texto del contenedor
-      const text = parent.text();
-      const priceMatch = text.match(/\$\s?(\d+[\d\.]*)/);
-      const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, '')) : 0;
+        // Subimos al contenedor para buscar el precio y título
+        const container = $(el).closest('li, div[class*="item"], div[class*="card"]');
+        
+        const title = container.find('h1, h2, h3').first().text().trim() || "Producto Referidos";
+        const priceStr = container.find('.andes-money-amount__fraction').first().text().replace(/\./g, '') || "0";
+        const img = container.find('img').first().attr('data-src') || container.find('img').first().attr('src');
 
-      // Buscamos el título (suele ser el texto del enlace o un H2/H3 cercano)
-      let title = $(el).find('h1, h2, h3').text().trim() || $(el).text().trim();
-      if (title.length < 5) title = parent.find('h2, h3').first().text().trim();
-
-      // Buscamos la imagen
-      const img = parent.find('img').first().attr('data-src') || parent.find('img').first().attr('src');
-
-      if (price > 0 && title.length > 5) {
-        products.push({
-          id: cleanLink.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `REF-${i}`,
-          title: title.substring(0, 100),
-          price: price,
-          permalink: cleanLink,
-          thumbnail: img || ""
-        });
+        if (parseInt(priceStr) > 0 || title !== "Producto Referidos") {
+          products.push({
+            id: cleanLink.match(/MLC-?(\d+)/)?.[0].replace('-', '') || `MLC-${i}`,
+            title: title,
+            price: parseInt(priceStr),
+            permalink: cleanLink,
+            thumbnail: img || ""
+          });
+        }
       }
     });
 
-    console.log(`✅ [Referidos] Finalizado: ${products.length} productos rescatados.`);
+    console.log(`✅ [Referidos] Operación terminada. Encontrados: ${products.length}`);
     res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en el túnel:", err.message);
-    res.status(500).json({ error: "Error de conexión", detail: err.message });
+    console.error("❌ Fallo en la infiltración:", err.message);
+    res.status(500).json({ error: "Error de red", details: err.message });
   }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 [Referidos] Escáner en puerto ${PORT}`);
+  console.log(`🚀 [Referidos] Servidor en puerto ${PORT}`);
 });
