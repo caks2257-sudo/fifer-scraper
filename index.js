@@ -1,4 +1,10 @@
-const puppeteer = require('puppeteer');
+// IMPORTAMOS EL CAMUFLAJE
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
+const express = require('express');
+// ... (deja el resto de tu código exactamente igual hacia abajo)
 const express = require('express');
 const cors = require('cors');
 const app = express();
