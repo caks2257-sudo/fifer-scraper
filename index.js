@@ -11,77 +11,53 @@ const APIFY_TOKEN = process.env.APIFY_TOKEN;
 const client = new ApifyClient({ token: APIFY_TOKEN });
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor de Extracción Apify V28 (Modo Sigilo) - Activo");
+  res.send("🚀 [FIFER] Motor Especialista V29 - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [FIFER] Solicitando inquilinos vía Apify Sigilo para: ${categoryId}`);
+  console.log(`🕵️‍♂️ [FIFER] Contratando Subcontratista (epctex) para: ${categoryId}`);
 
   try {
-    console.log("🚜 Petición de alta velocidad en proceso...");
-    
-    // 💡 CAMBIO CRÍTICO: Usamos cheerio-scraper. Es 10x más rápido y evade ciertos bloqueos visuales.
-    const run = await client.actor("apify/cheerio-scraper").call({
-        startUrls: [{ url: `https://listado.mercadolibre.cl/_CategoryId_${categoryId}` }],
-        useApifyProxy: true,
-        apifyProxyGroups: ["RESIDENTIAL"], 
-        pageFunction: `
-            async function pageFunction(context) {
-                const { $ } = context;
-                // 📷 TELEMETRÍA: Capturamos el título para saber qué vio Apify realmente
-                const pageTitle = $('title').text() || "Sin Título";
-                const products = [];
-                
-                // Selectores ultra-amplios para abarcar cualquier rediseño de ML
-                $('.ui-search-result__wrapper, .poly-card, .ui-search-layout__item').each((i, el) => {
-                    if (products.length >= 3) return false; 
-                    const card = $(el);
-                    const link = card.find('a').attr('href') || "";
-                    
-                    if (link.includes('articulo.mercadolibre.cl')) {
-                        const priceStr = card.find('.andes-money-amount__fraction').first().text().replace(/\\./g, '');
-                        const img = card.find('img').first().attr('data-src') || card.find('img').first().attr('src') || "";
-                        
-                        products.push({
-                            id: link.match(/MLC-?(\\d+)/)?.[0].replace('-', '') || \`REF-\${i}\`,
-                            title: card.find('h2, h3').first().text().trim() || "Producto FIFER",
-                            price: parseInt(priceStr) || 0,
-                            permalink: link.split('#')[0].split('?')[0],
-                            thumbnail: img
-                        });
-                    }
-                });
-                
-                // Devolvemos un objeto estructurado para el diagnóstico
-                return {
-                    title: pageTitle,
-                    productsFound: products.length,
-                    products: products
-                };
-            }
-        `
+    // Limpiamos el ID por si viene como "MLC1071" y armamos la URL directa
+    const cleanId = categoryId.replace('MLC', '');
+    const targetUrl = `https://listado.mercadolibre.cl/MLC${cleanId}`;
+
+    console.log("🚜 El especialista está en terreno (puede tardar 15-40 segundos)...");
+
+    // 💡 CAMBIO CRÍTICO: Llamamos al scraper especializado en Mercado Libre
+    const run = await client.actor("epctex/mercadolibre-scraper").call({
+        startUrls: [{ url: targetUrl }],
+        maxItems: 3, // Solo pedimos 3 para que sea rápido y barato
+        proxy: { useApifyProxy: true }
     });
 
+    console.log("📥 Recibiendo informe del especialista...");
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
-    const data = items.length > 0 ? items[0] : null;
 
-    if (!data || data.productsFound === 0) {
-       // 🚨 Aquí leemos las cámaras de seguridad
-       const tituloVisto = data ? data.title : "Desconocido";
-       console.log(`⚠️ Terreno vacío. Título capturado por Apify: "${tituloVisto}"`);
-       return res.json({ results: [], status: "blocked", view: tituloVisto });
+    if (!items || items.length === 0) {
+       console.log("⚠️ El subcontratista volvió con las manos vacías.");
+       return res.json({ results: [], status: "empty" });
     }
 
-    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${data.productsFound} productos obtenidos del mall: "${data.title}"`);
-    res.json({ results: data.products });
+    // Adaptamos el formato del especialista a lo que tu aplicación FIFER necesita
+    const products = items.map((item, i) => ({
+        id: item.id || `REF-${i}`,
+        title: item.title || item.name || "Producto FIFER",
+        price: item.price || 0,
+        permalink: item.url || item.link,
+        thumbnail: item.picture || item.thumbnail || item.imageUrl || ""
+    }));
+
+    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos instalados.`);
+    res.json({ results: products });
 
   } catch (err) {
-    console.error("❌ Fallo en la maquinaria profunda:", err.message);
+    console.error("❌ Fallo en el subcontrato:", err.message);
     res.status(500).json({ error: "Error en la faena", details: err.message });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Apify V28 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Especialista en puerto ${PORT}`));
