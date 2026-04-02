@@ -10,8 +10,6 @@ const PORT = process.env.PORT || 10000;
 const ML_APP_ID = process.env.ML_APP_ID;
 const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
 const ML_REFRESH_TOKEN = process.env.ML_REFRESH_TOKEN;
-// 🚇 La llave del Túnel
-const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY; 
 
 let currentAccessToken = null;
 let tokenExpirationTime = 0;
@@ -37,54 +35,17 @@ async function getValidAccessToken() {
     return currentAccessToken;
 }
 
-app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V48 (Ultra Premium + IP Chilena) - Activo"));
+app.get('/', (req, res) => res.send("🚀 [FIFER] Bóveda de Llaves V49 - Activa"));
 
-app.get('/scrape', async (req, res) => {
-  const { categoryId } = req.query;
-  if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
-
-  console.log(`\n🕵️‍♂️ [FIFER] Extracción REAL en proceso para: ${categoryId}`);
-
+// 💡 NUEVO ENDPOINT: Solo entrega el token al frontend
+app.get('/get-token', async (req, res) => {
   try {
-    const accessToken = await getValidAccessToken();
-    const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
-    
-    // 💡 LA PERFORADORA ULTRA-DIAMANTE: ultra_premium=true Y country_code=cl
-    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true&ultra_premium=true&country_code=cl`;
-
-    console.log(`🚜 Cruzando DataDome con IPs ULTRA Premium de Chile... (Paciencia, puede tomar hasta 60s)`);
-    
-    const response = await axios.get(proxyUrl, {
-        headers: {
-            'Authorization': `Bearer ${accessToken}`, 
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', 
-            'Accept': 'application/json'
-        },
-        timeout: 60000 
-    });
-
-    if (!response.data || !response.data.results) {
-        throw new Error("El túnel funcionó pero Mercado Libre no devolvió productos.");
-    }
-
-    const products = response.data.results.slice(0, 3).map((item, i) => ({
-        id: item.id || `REF-${i}`,
-        title: item.title || "Producto FIFER",
-        price: item.price || 0,
-        permalink: item.permalink || "",
-        thumbnail: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : ""
-    }));
-
-    console.log(`✅ [FIFER] ¡ÉXITO ROTUNDO! ${products.length} productos 100% REALES extraídos de la bóveda.`);
-    return res.json({ results: products, source: "real_ml_api_proxied_ultra_premium" });
-
+    const token = await getValidAccessToken();
+    res.json({ access_token: token });
   } catch (err) {
-    console.error(`❌ FALLA TÉCNICA CRÍTICA:`, err.response?.data || err.message);
-    return res.status(500).json({ 
-        error: "Fallo en la extracción real.", 
-        details: err.response?.data || err.message 
-    });
+    console.error("❌ Error generando llave:", err.message);
+    res.status(500).json({ error: "Fallo en la bóveda de llaves." });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V48 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Bóveda V49 en puerto ${PORT}`));
