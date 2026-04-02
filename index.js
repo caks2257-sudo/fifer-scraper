@@ -8,11 +8,10 @@ const PORT = process.env.PORT || 10000;
 
 // 🔑 La llave sigue segura en la caja fuerte de Render
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY; 
-// 💡 CAMBIO CRÍTICO 1: El nuevo host Premium
 const RAPIDAPI_HOST = 'mercado-libre7.p.rapidapi.com';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor V40 (Contratista Premium mercado-libre7) - Activo");
+  res.send("🚀 [FIFER] Motor Premium V41 (Con Sello JSON) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
@@ -40,15 +39,16 @@ app.get('/scrape', async (req, res) => {
   // ==========================================
   const options = {
     method: 'GET',
-    // 💡 CAMBIO CRÍTICO 2: El endpoint exacto de la izquierda de tu imagen
     url: `https://${RAPIDAPI_HOST}/listings_for_search`, 
     params: { 
-      query: searchKeyword, // Parámetro estándar para esta API
+      query: searchKeyword, // Parámetro estándar
       site: 'MLC' // Código de Mercado Libre Chile
     },
     headers: { 
       'x-rapidapi-key': RAPIDAPI_KEY, 
-      'x-rapidapi-host': RAPIDAPI_HOST 
+      'x-rapidapi-host': RAPIDAPI_HOST,
+      'Content-Type': 'application/json', // 💡 EL SELLO QUE FALTABA
+      'Accept': 'application/json'
     },
     timeout: 25000 
   };
@@ -119,4 +119,4 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Premium V40 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Premium V41 en puerto ${PORT}`));
