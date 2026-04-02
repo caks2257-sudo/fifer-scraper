@@ -37,7 +37,7 @@ async function getValidAccessToken() {
     return currentAccessToken;
 }
 
-app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V46 (Túnel con 60s de paciencia) - Activo"));
+app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V47 (Túnel Premium ScraperAPI) - Activo"));
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
@@ -49,10 +49,10 @@ app.get('/scrape', async (req, res) => {
     const accessToken = await getValidAccessToken();
     const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
     
-    // 💡 El túnel de ScraperAPI
-    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true`;
+    // 💡 LA MAQUINARIA PESADA: Agregamos &premium=true al túnel
+    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true&premium=true`;
 
-    console.log(`🚜 Cruzando el escudo de DataDome... (démosle hasta 60 segundos)`);
+    console.log(`🚜 Cruzando el escudo de DataDome con IPs Premium... (Paciencia, puede tomar hasta 60s)`);
     
     const response = await axios.get(proxyUrl, {
         headers: {
@@ -60,7 +60,7 @@ app.get('/scrape', async (req, res) => {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', 
             'Accept': 'application/json'
         },
-        timeout: 60000 // 💡 AJUSTE CRÍTICO: 60 segundos de paciencia para que el túnel haga su magia
+        timeout: 60000 // Seguimos dándole 60s para que trabaje tranquilo
     });
 
     if (!response.data || !response.data.results) {
@@ -76,7 +76,7 @@ app.get('/scrape', async (req, res) => {
     }));
 
     console.log(`✅ [FIFER] ¡ÉXITO ROTUNDO! ${products.length} productos 100% REALES extraídos de la bóveda.`);
-    return res.json({ results: products, source: "real_ml_api_proxied" });
+    return res.json({ results: products, source: "real_ml_api_proxied_premium" });
 
   } catch (err) {
     console.error(`❌ FALLA TÉCNICA CRÍTICA:`, err.response?.data || err.message);
@@ -87,4 +87,4 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V46 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V47 en puerto ${PORT}`));
