@@ -6,72 +6,96 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-// 🔑 Extraemos tus credenciales de la caja fuerte
+// 🔑 Las llaves oficiales de la bóveda
 const ML_APP_ID = process.env.ML_APP_ID;
 const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
-const REDIRECT_URI = 'https://api-fifer-scraper.onrender.com/callback';
+const ML_REFRESH_TOKEN = process.env.ML_REFRESH_TOKEN;
 
-// 🏢 LA PUERTA DE ENTRADA: Te mostrará el link oficial para firmar
-app.get('/', (req, res) => {
-  const authUrl = `https://auth.mercadolibre.cl/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${REDIRECT_URI}`;
-  res.send(`
-    <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
-      <h1>🚀 [FIFER] Oficina de Trámites Oficiales</h1>
-      <p>Haz clic en el botón de abajo para ir a Mercado Libre, iniciar sesión y autorizar tu aplicación.</p>
-      <br>
-      <a href="${authUrl}" style="background-color: #2b3bda; color: white; padding: 15px 30px; text-decoration: none; font-size: 18px; border-radius: 5px; font-weight: bold;">
-        👉 SACAR PERMISO EN MERCADO LIBRE
-      </a>
-    </div>
-  `);
-});
+// 🧠 Gestor de Credenciales en Memoria
+let currentAccessToken = null;
+let tokenExpirationTime = 0;
 
-// 📝 LA VENTANILLA DE RECEPCIÓN: Mercado libre nos mandará aquí el código
-app.get('/callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.send("⚠️ No se recibió ningún código de autorización de Mercado Libre.");
+// Función inteligente para obtener o renovar el Pase VIP
+async function getValidAccessToken() {
+    const now = Date.now();
+    // Si tenemos un token y aún le quedan más de 5 minutos de vida, lo usamos
+    if (currentAccessToken && now < tokenExpirationTime - 300000) {
+        return currentAccessToken;
+    }
 
-  console.log(`\n🕵️‍♂️ [FIFER] Código temporal recibido. Intercambiando por Pases VIP...`);
-
-  try {
-    // Armamos el papeleo oficial para pedir el Token
+    console.log("🔄 [SISTEMA] Pase VIP vencido o inexistente. Generando uno nuevo...");
+    
     const params = new URLSearchParams();
-    params.append('grant_type', 'authorization_code');
+    params.append('grant_type', 'refresh_token');
     params.append('client_id', ML_APP_ID);
     params.append('client_secret', ML_CLIENT_SECRET);
-    params.append('code', code);
-    params.append('redirect_uri', REDIRECT_URI);
+    params.append('refresh_token', ML_REFRESH_TOKEN);
 
-    // Enviamos el papeleo a la bóveda
-    const response = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/x-www-form-urlencoded'
-      }
+    try {
+        const response = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
+            headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }
+        });
+        
+        currentAccessToken = response.data.access_token;
+        // Mercado Libre da tokens por 6 horas (21600 segundos). Lo guardamos.
+        tokenExpirationTime = now + (response.data.expires_in * 1000); 
+        console.log("✅ [SISTEMA] Nuevo Pase VIP obtenido con éxito.");
+        return currentAccessToken;
+    } catch (error) {
+        console.error("❌ Fallo crítico al renovar el Pase VIP:", error.response?.data || error.message);
+        throw new Error("No se pudo renovar el token de Mercado Libre.");
+    }
+}
+
+app.get('/', (req, res) => {
+  res.send("🚀 [FIFER] Motor V44 (Conexión Oficial Autenticada OAuth 2.0) - Activo");
+});
+
+app.get('/scrape', async (req, res) => {
+  const { categoryId } = req.query;
+  if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
+
+  console.log(`\n🕵️‍♂️ [FIFER] Accediendo a la Bóveda Oficial para: ${categoryId}`);
+
+  try {
+    // 1. Conseguimos el pase vigente
+    const accessToken = await getValidAccessToken();
+
+    // 2. Entramos por la puerta principal, mostrando nuestra credencial
+    const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
+    const response = await axios.get(targetUrl, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}` // 💡 EL PASE VIP
+        }
     });
 
-    const { access_token, refresh_token } = response.data;
-    console.log("✅ [FIFER] ¡TRÁMITE EXITOSO! Tokens generados.");
-    
-    // Te mostramos el premio en pantalla
-    res.send(`
-      <div style="font-family: sans-serif; padding: 40px;">
-        <h1 style="color: green;">🎉 ¡Permiso Municipal Aprobado!</h1>
-        <p>Copia el código que está abajo <b>(El REFRESH_TOKEN)</b>. Es la llave maestra que usaremos para que el servidor nunca más pierda la conexión.</p>
-        <pre style="background: #eee; padding: 20px; font-size: 16px; border-radius: 5px; overflow-wrap: break-word;">${refresh_token}</pre>
-        <p><i>Nota: Ya puedes cerrar esta ventana y volver al chat conmigo.</i></p>
-      </div>
-    `);
+    if (!response.data || !response.data.results || response.data.results.length === 0) {
+        throw new Error("La categoría está vacía en la API oficial.");
+    }
 
-  } catch (error) {
-    console.error("❌ Fallo en el trámite:", error.response?.data || error.message);
-    res.send(`<h3 style="color:red;">❌ Error al canjear el código. Mira el log en Render.</h3>`);
+    // 3. Mapeamos al formato FIFER
+    const products = response.data.results.slice(0, 3).map((item, i) => ({
+        id: item.id || `REF-${i}`,
+        title: item.title || "Producto FIFER",
+        price: item.price || 0,
+        permalink: item.permalink || "",
+        thumbnail: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : ""
+    }));
+
+    console.log(`✅ [FIFER] ¡INQUILINOS OFICIALES EXTRAÍDOS! ${products.length} productos listos.`);
+    return res.json({ results: products, source: "mercadolibre_official_auth" });
+
+  } catch (err) {
+    console.error(`⚠️ Falla en la operación oficial (${err.message}). Activando Sistema Anti-Sísmico...`);
+    
+    // El respaldo inquebrantable
+    const fallbackProducts = [
+      { id: `MOCK-1-${categoryId}`, title: `Artículo Premium (${categoryId})`, price: 25990, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_824925-MLU74272895689_012024-O.jpg" },
+      { id: `MOCK-2-${categoryId}`, title: `Oferta Especial (${categoryId})`, price: 15500, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_892994-MLC50190145260_062022-O.jpg" },
+      { id: `MOCK-3-${categoryId}`, title: `Producto Estándar (${categoryId})`, price: 9900, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_788220-MLC51347055990_082022-O.jpg" }
+    ];
+    return res.json({ results: fallbackProducts, source: "fallback_mock" });
   }
 });
 
-// Dejamos tu endpoint de scrape con el andamio por si acaso
-app.get('/scrape', (req, res) => {
-    res.json({ results: [], status: "tramite_en_proceso" });
-});
-
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Oficina V43 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Oficial en puerto ${PORT}`));
