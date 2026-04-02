@@ -14,6 +14,7 @@ const ML_REFRESH_TOKEN = process.env.ML_REFRESH_TOKEN;
 let currentAccessToken = null;
 let tokenExpirationTime = 0;
 
+// Renovación inteligente del Pase VIP
 async function getValidAccessToken() {
     const now = Date.now();
     if (currentAccessToken && now < tokenExpirationTime - 300000) {
@@ -35,17 +36,51 @@ async function getValidAccessToken() {
     return currentAccessToken;
 }
 
-app.get('/', (req, res) => res.send("🚀 [FIFER] Bóveda de Llaves V49 - Activa"));
+app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V50 (Enterprise Auth) - Activo"));
 
-// 💡 NUEVO ENDPOINT: Solo entrega el token al frontend
-app.get('/get-token', async (req, res) => {
+app.get('/scrape', async (req, res) => {
+  const { categoryId } = req.query;
+  if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
+
+  console.log(`\n🕵️‍♂️ [FIFER] Extracción REAL en proceso para: ${categoryId}`);
+
   try {
-    const token = await getValidAccessToken();
-    res.json({ access_token: token });
+    const accessToken = await getValidAccessToken();
+    const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
+    
+    console.log(`🚜 Entrando por la Bóveda Oficial con Credenciales Enterprise...`);
+    
+    const response = await axios.get(targetUrl, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`, 
+            // 💡 EL TRAJE DE ETIQUETA: Cumplimos la norma de identidad de ML
+            'User-Agent': 'FIFER-App/1.0 (contacto@abkupfer.cl)', 
+            'Accept': 'application/json'
+        }
+    });
+
+    if (!response.data || !response.data.results) {
+        throw new Error("La bóveda oficial respondió, pero no entregó productos.");
+    }
+
+    const products = response.data.results.slice(0, 3).map((item, i) => ({
+        id: item.id || `REF-${i}`,
+        title: item.title || "Producto FIFER",
+        price: item.price || 0,
+        permalink: item.permalink || "",
+        thumbnail: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : ""
+    }));
+
+    console.log(`✅ [FIFER] ¡ÉXITO ROTUNDO! ${products.length} Inquilinos Reales extraídos de la bóveda.`);
+    return res.json({ results: products, source: "ml_enterprise_auth" });
+
   } catch (err) {
-    console.error("❌ Error generando llave:", err.message);
-    res.status(500).json({ error: "Fallo en la bóveda de llaves." });
+    console.error(`❌ FALLA TÉCNICA CRÍTICA:`, err.response?.data || err.message);
+    return res.status(500).json({ 
+        error: "Fallo en la extracción real.", 
+        details: err.response?.data || err.message 
+    });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Bóveda V49 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V50 en puerto ${PORT}`));
