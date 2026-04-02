@@ -11,7 +11,7 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'mercado-libre8.p.rapidapi.com';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor Data Broker (RapidAPI mercado-libre8) V34 - Activo");
+  res.send("🚀 [FIFER] Motor Data Broker V35 (Parámetros Corregidos) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
@@ -20,12 +20,13 @@ app.get('/scrape', async (req, res) => {
 
   console.log(`🕵️‍♂️ [FIFER] Solicitando inquilinos al Broker para: ${categoryId}`);
 
-  // Configuramos la petición para el endpoint de búsqueda (/search)
+  // Configuramos la petición con los parámetros EXACTOS que pide este broker
   const options = {
     method: 'GET',
     url: `https://${RAPIDAPI_HOST}/search`,
     params: { 
-      q: categoryId // Le pasamos la categoría o búsqueda al broker
+      keyword: categoryId, // Aquí está la corrección
+      country: 'CL'        // Agregamos el país obligatorio
     },
     headers: {
       'x-rapidapi-key': RAPIDAPI_KEY,
@@ -43,6 +44,7 @@ app.get('/scrape', async (req, res) => {
     if (response.data && response.data.results) rawItems = response.data.results;
     else if (Array.isArray(response.data)) rawItems = response.data;
     else if (response.data && response.data.data) rawItems = response.data.data;
+    else if (response.data && response.data.items) rawItems = response.data.items;
 
     if (rawItems.length === 0) {
        console.log("⚠️ El Broker respondió bien, pero la lista venía vacía.");
