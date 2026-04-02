@@ -11,7 +11,7 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'mercado-libre8.p.rapidapi.com';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor V38 (Anti-Sísmico + Respaldo Dinámico) - Activo");
+  res.send("🚀 [FIFER] Motor V39 (Ajuste de Tuercas: 30s) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
@@ -42,26 +42,23 @@ app.get('/scrape', async (req, res) => {
     url: `https://${RAPIDAPI_HOST}/search`,
     params: { keyword: searchKeyword, country: 'CL' },
     headers: { 'x-rapidapi-key': RAPIDAPI_KEY, 'x-rapidapi-host': RAPIDAPI_HOST },
-    timeout: 10000 
+    timeout: 30000 // 🔧 AJUSTE DE TUERCAS: Le damos hasta 30 segundos al Broker
   };
 
   try {
-    console.log(`🚜 Broker buscando: "${searchKeyword}"...`);
+    console.log(`🚜 Broker buscando: "${searchKeyword}" (Esperando hasta 30s)...`);
     const response = await axios.request(options);
 
-    // Si el Broker nos manda su propio mensaje de error (como el "Failed after multiple retries")
     if (response.data && response.data.status === 'error') {
         throw new Error(`El Broker falló internamente: ${response.data.message}`);
     }
 
-    // Buscamos la lista de productos
     let rawItems = [];
     if (Array.isArray(response.data)) rawItems = response.data;
     else if (response.data.results) rawItems = response.data.results;
     else if (response.data.search_results) rawItems = response.data.search_results;
     else if (response.data.data) rawItems = response.data.data;
 
-    // Si la lista está vacía o es inválida, forzamos el error para ir al Respaldo
     if (rawItems.length === 0) throw new Error("Broker no entregó productos.");
 
     const products = rawItems.slice(0, 3).map((item, i) => ({
@@ -81,7 +78,6 @@ app.get('/scrape', async (req, res) => {
     // ==========================================
     // PASO 3: RESPALDO DINÁMICO (ANTI-SÍSMICO)
     // ==========================================
-    // Generamos productos falsos pero con el nombre de la categoría real para que el Frontend funcione
     const fallbackProducts = [
       {
         id: `MOCK-1-${categoryId}`,
