@@ -11,28 +11,27 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'mercado-libre8.p.rapidapi.com';
 
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor V37 (Dinámico + Escáner) - Activo");
+  res.send("🚀 [FIFER] Motor V38 (Anti-Sísmico + Respaldo Dinámico) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`\n🕵️‍♂️ [FIFER] Nueva orden de trabajo recibida: ${categoryId}`);
+  console.log(`\n🕵️‍♂️ [FIFER] Orden recibida: ${categoryId}`);
 
   // ==========================================
-  // PASO 1: TRADUCTOR DINÁMICO UNIVERSAL
+  // PASO 1: TRADUCTOR DINÁMICO
   // ==========================================
   let searchKeyword = categoryId;
   try {
-    // Consultamos el diccionario público y gratuito de Mercado Libre
     const catResponse = await axios.get(`https://api.mercadolibre.com/categories/${categoryId}`);
     if (catResponse.data && catResponse.data.name) {
-        searchKeyword = catResponse.data.name; // Ej: "Animales y Mascotas"
-        console.log(`📘 Traducción oficial obtenida: "${searchKeyword}"`);
+        searchKeyword = catResponse.data.name; 
+        console.log(`📘 Traducción oficial: "${searchKeyword}"`);
     }
   } catch (error) {
-    console.log(`⚠️ No se pudo traducir la categoría. Usaremos el ID directo: ${categoryId}`);
+    console.log(`⚠️ No se pudo traducir. Usando ID: ${categoryId}`);
   }
 
   // ==========================================
@@ -41,65 +40,75 @@ app.get('/scrape', async (req, res) => {
   const options = {
     method: 'GET',
     url: `https://${RAPIDAPI_HOST}/search`,
-    params: { 
-      keyword: searchKeyword, // Ahora esto es 100% dinámico para tu frontend
-      country: 'CL'
-    },
-    headers: {
-      'x-rapidapi-key': RAPIDAPI_KEY,
-      'x-rapidapi-host': RAPIDAPI_HOST
-    },
-    timeout: 15000 
+    params: { keyword: searchKeyword, country: 'CL' },
+    headers: { 'x-rapidapi-key': RAPIDAPI_KEY, 'x-rapidapi-host': RAPIDAPI_HOST },
+    timeout: 10000 
   };
 
   try {
-    console.log(`🚜 Enviando orden al Broker buscando: "${searchKeyword}"...`);
+    console.log(`🚜 Broker buscando: "${searchKeyword}"...`);
     const response = await axios.request(options);
 
-    // 🔍 RAYOS X: Imprimimos la estructura exacta que nos mandó el Broker
-    console.log("📦 Estructura del paquete recibido:", Object.keys(response.data));
-    
-    // Adaptador universal súper agresivo
+    // Si el Broker nos manda su propio mensaje de error (como el "Failed after multiple retries")
+    if (response.data && response.data.status === 'error') {
+        throw new Error(`El Broker falló internamente: ${response.data.message}`);
+    }
+
+    // Buscamos la lista de productos
     let rawItems = [];
     if (Array.isArray(response.data)) rawItems = response.data;
     else if (response.data.results) rawItems = response.data.results;
-    else if (response.data.search_results) rawItems = response.data.search_results; // Variante común
-    else if (response.data.items) rawItems = response.data.items;
+    else if (response.data.search_results) rawItems = response.data.search_results;
     else if (response.data.data) rawItems = response.data.data;
-    // Si no es ninguna de esas, tomamos el primer arreglo que encontremos adentro
-    else {
-        for (let key in response.data) {
-            if (Array.isArray(response.data[key]) && response.data[key].length > 0) {
-                rawItems = response.data[key];
-                console.log(`🔦 ¡Bingo! Los productos estaban escondidos en: "${key}"`);
-                break;
-            }
-        }
-    }
 
-    if (rawItems.length === 0) {
-       console.log("⚠️ El Broker no envió una lista válida. Mira los Rayos X arriba para ver qué mandó.");
-       // Imprimimos un pedazo de lo que mandó para diagnosticar
-       console.log("📄 Muestra cruda:", JSON.stringify(response.data).substring(0, 200));
-       return res.json({ results: [], status: "empty_from_broker" });
-    }
+    // Si la lista está vacía o es inválida, forzamos el error para ir al Respaldo
+    if (rawItems.length === 0) throw new Error("Broker no entregó productos.");
 
-    // Mapeamos los datos al formato FIFER
     const products = rawItems.slice(0, 3).map((item, i) => ({
-        id: item.id || item.catalog_product_id || `REF-${i}`,
-        title: item.title || item.name || "Producto FIFER",
+        id: item.id || `REF-${i}`,
+        title: item.title || item.name || `Producto FIFER (${searchKeyword})`,
         price: item.price || item.current_price || 0,
-        permalink: item.permalink || item.url || item.link || "",
-        thumbnail: item.thumbnail || item.picture || item.image || item.thumbnail_id ? `https://http2.mlstatic.com/D_${item.thumbnail_id}-O.jpg` : ""
+        permalink: item.permalink || item.url || "",
+        thumbnail: item.thumbnail || item.picture || item.image || "https://http2.mlstatic.com/D_824925-MLU74272895689_012024-O.jpg"
     }));
 
-    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos procesados.`);
-    res.json({ results: products });
+    console.log(`✅ [FIFER] ¡INQUILINOS REALES! ${products.length} productos procesados.`);
+    return res.json({ results: products, source: "rapidapi" });
 
   } catch (err) {
-    console.error("❌ Fallo en la conexión con el Broker:", err.response?.data || err.message);
-    res.status(500).json({ error: "Error del Data Broker" });
+    console.error(`⚠️ Caída del Broker (${err.message}). Activando Generador de Respaldo...`);
+    
+    // ==========================================
+    // PASO 3: RESPALDO DINÁMICO (ANTI-SÍSMICO)
+    // ==========================================
+    // Generamos productos falsos pero con el nombre de la categoría real para que el Frontend funcione
+    const fallbackProducts = [
+      {
+        id: `MOCK-1-${categoryId}`,
+        title: `${searchKeyword} - Artículo Premium`,
+        price: 25990,
+        permalink: "https://mercadolibre.cl",
+        thumbnail: "https://http2.mlstatic.com/D_824925-MLU74272895689_012024-O.jpg"
+      },
+      {
+        id: `MOCK-2-${categoryId}`,
+        title: `${searchKeyword} - Oferta Especial`,
+        price: 15500,
+        permalink: "https://mercadolibre.cl",
+        thumbnail: "https://http2.mlstatic.com/D_892994-MLC50190145260_062022-O.jpg"
+      },
+      {
+        id: `MOCK-3-${categoryId}`,
+        title: `${searchKeyword} - Producto Estándar`,
+        price: 9900,
+        permalink: "https://mercadolibre.cl",
+        thumbnail: "https://http2.mlstatic.com/D_788220-MLC51347055990_082022-O.jpg"
+      }
+    ];
+
+    console.log(`🚧 [FIFER] Inquilinos de respaldo (${searchKeyword}) desplegados con éxito.`);
+    return res.json({ results: fallbackProducts, source: "fallback_mock" });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Broker Dinámico en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Anti-Sísmico en puerto ${PORT}`));
