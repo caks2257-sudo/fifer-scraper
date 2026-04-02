@@ -6,74 +6,69 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 10000;
 
-// 🔑 Las llaves oficiales de la bóveda
+// 🔑 Las llaves de la Bóveda Oficial
 const ML_APP_ID = process.env.ML_APP_ID;
 const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
 const ML_REFRESH_TOKEN = process.env.ML_REFRESH_TOKEN;
+// 🚇 La llave del Túnel Residencial
+const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY; 
 
-// 🧠 Gestor de Credenciales en Memoria
 let currentAccessToken = null;
 let tokenExpirationTime = 0;
 
-// Función inteligente para obtener o renovar el Pase VIP
+// Renovación inteligente del Token Oficial
 async function getValidAccessToken() {
     const now = Date.now();
-    // Si tenemos un token y aún le quedan más de 5 minutos de vida, lo usamos
     if (currentAccessToken && now < tokenExpirationTime - 300000) {
         return currentAccessToken;
     }
-
-    console.log("🔄 [SISTEMA] Pase VIP vencido o inexistente. Generando uno nuevo...");
-    
+    console.log("🔄 [SISTEMA] Renovando Pase VIP de Mercado Libre...");
     const params = new URLSearchParams();
     params.append('grant_type', 'refresh_token');
     params.append('client_id', ML_APP_ID);
     params.append('client_secret', ML_CLIENT_SECRET);
     params.append('refresh_token', ML_REFRESH_TOKEN);
 
-    try {
-        const response = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
-            headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }
-        });
-        
-        currentAccessToken = response.data.access_token;
-        // Mercado Libre da tokens por 6 horas (21600 segundos). Lo guardamos.
-        tokenExpirationTime = now + (response.data.expires_in * 1000); 
-        console.log("✅ [SISTEMA] Nuevo Pase VIP obtenido con éxito.");
-        return currentAccessToken;
-    } catch (error) {
-        console.error("❌ Fallo crítico al renovar el Pase VIP:", error.response?.data || error.message);
-        throw new Error("No se pudo renovar el token de Mercado Libre.");
-    }
+    const response = await axios.post('https://api.mercadolibre.com/oauth/token', params, {
+        headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }
+    });
+    currentAccessToken = response.data.access_token;
+    tokenExpirationTime = now + (response.data.expires_in * 1000); 
+    console.log("✅ [SISTEMA] Pase VIP oficial validado.");
+    return currentAccessToken;
 }
 
-app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor V44 (Conexión Oficial Autenticada OAuth 2.0) - Activo");
-});
+app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V45 (Token Oficial + ScraperAPI) - Activo"));
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`\n🕵️‍♂️ [FIFER] Accediendo a la Bóveda Oficial para: ${categoryId}`);
+  console.log(`\n🕵️‍♂️ [FIFER] Extracción REAL en proceso para la categoría: ${categoryId}`);
 
   try {
-    // 1. Conseguimos el pase vigente
     const accessToken = await getValidAccessToken();
-
-    // 2. Entramos por la puerta principal, mostrando nuestra credencial
     const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
-    const response = await axios.get(targetUrl, {
+    
+    // 💡 LA PERFORADORA: Usamos la API Oficial, pero viajando por una IP de casa real
+    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true`;
+
+    console.log(`🚜 Cruzando el escudo de DataDome... (puede tardar 5-15s)`);
+    
+    const response = await axios.get(proxyUrl, {
         headers: {
-            'Authorization': `Bearer ${accessToken}` // 💡 EL PASE VIP
-        }
+            'Authorization': `Bearer ${accessToken}`, // Tu credencial oficial humana
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', // Disfraz de navegador
+            'Accept': 'application/json'
+        },
+        timeout: 30000 // Le damos tiempo al túnel de hacer su trabajo
     });
 
-    if (!response.data || !response.data.results || response.data.results.length === 0) {
-        throw new Error("La categoría está vacía en la API oficial.");
+    if (!response.data || !response.data.results) {
+        throw new Error("El túnel funcionó pero Mercado Libre no devolvió productos.");
     }
 
-    // 3. Mapeamos al formato FIFER
+    // Mapeamos los datos puramente reales
     const products = response.data.results.slice(0, 3).map((item, i) => ({
         id: item.id || `REF-${i}`,
         title: item.title || "Producto FIFER",
@@ -82,20 +77,17 @@ app.get('/scrape', async (req, res) => {
         thumbnail: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : ""
     }));
 
-    console.log(`✅ [FIFER] ¡INQUILINOS OFICIALES EXTRAÍDOS! ${products.length} productos listos.`);
-    return res.json({ results: products, source: "mercadolibre_official_auth" });
+    console.log(`✅ [FIFER] ¡ÉXITO ROTUNDO! ${products.length} productos 100% REALES extraídos de la bóveda.`);
+    return res.json({ results: products, source: "real_ml_api_proxied" });
 
   } catch (err) {
-    console.error(`⚠️ Falla en la operación oficial (${err.message}). Activando Sistema Anti-Sísmico...`);
-    
-    // El respaldo inquebrantable
-    const fallbackProducts = [
-      { id: `MOCK-1-${categoryId}`, title: `Artículo Premium (${categoryId})`, price: 25990, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_824925-MLU74272895689_012024-O.jpg" },
-      { id: `MOCK-2-${categoryId}`, title: `Oferta Especial (${categoryId})`, price: 15500, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_892994-MLC50190145260_062022-O.jpg" },
-      { id: `MOCK-3-${categoryId}`, title: `Producto Estándar (${categoryId})`, price: 9900, permalink: "https://mercadolibre.cl", thumbnail: "https://http2.mlstatic.com/D_788220-MLC51347055990_082022-O.jpg" }
-    ];
-    return res.json({ results: fallbackProducts, source: "fallback_mock" });
+    // ⚠️ ELIMINAMOS LOS ANDAMIOS. SI FALLA, QUEREMOS VER LA VERDAD EN LA CONSOLA.
+    console.error(`❌ FALLA TÉCNICA CRÍTICA:`, err.response?.data || err.message);
+    return res.status(500).json({ 
+        error: "Fallo en la extracción real. Revisa el log de Render.", 
+        details: err.response?.data || err.message 
+    });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor Oficial en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V45 Definitivo en puerto ${PORT}`));
