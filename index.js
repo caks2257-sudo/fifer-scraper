@@ -10,23 +10,35 @@ const PORT = process.env.PORT || 10000;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY; 
 const RAPIDAPI_HOST = 'mercado-libre8.p.rapidapi.com';
 
+// 🧠 DICCIONARIO TRADUCTOR (Código de Categoría -> Búsqueda Humana)
+const categoryTranslator = {
+  'MLC1071': 'mascotas',
+  'MLC1051': 'celulares',
+  'MLC1144': 'consolas videojuegos',
+  'MLC1648': 'computacion',
+  'MLC1574': 'hogar muebles',
+  'MLC1430': 'ropa'
+};
+
 app.get('/', (req, res) => {
-  res.send("🚀 [FIFER] Motor Data Broker V35 (Parámetros Corregidos) - Activo");
+  res.send("🚀 [FIFER] Motor Data Broker V36 (Con Traductor) - Activo");
 });
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
   if (!categoryId) return res.status(400).json({ error: "Falta categoryId" });
 
-  console.log(`🕵️‍♂️ [FIFER] Solicitando inquilinos al Broker para: ${categoryId}`);
+  // Traducimos el código. Si no está en el diccionario, buscamos "productos" por defecto.
+  const searchKeyword = categoryTranslator[categoryId] || 'ofertas';
 
-  // Configuramos la petición con los parámetros EXACTOS que pide este broker
+  console.log(`🕵️‍♂️ [FIFER] El frontend pidió ${categoryId}. Buscando la palabra humana: "${searchKeyword}"`);
+
   const options = {
     method: 'GET',
     url: `https://${RAPIDAPI_HOST}/search`,
     params: { 
-      keyword: categoryId, // Aquí está la corrección
-      country: 'CL'        // Agregamos el país obligatorio
+      keyword: searchKeyword, // Le pasamos la palabra traducida al broker
+      country: 'CL'
     },
     headers: {
       'x-rapidapi-key': RAPIDAPI_KEY,
@@ -39,16 +51,14 @@ app.get('/scrape', async (req, res) => {
     console.log("🚜 El Broker está extrayendo los datos...");
     const response = await axios.request(options);
 
-    // Adaptador universal para leer la estructura del broker
     let rawItems = [];
     if (response.data && response.data.results) rawItems = response.data.results;
     else if (Array.isArray(response.data)) rawItems = response.data;
     else if (response.data && response.data.data) rawItems = response.data.data;
-    else if (response.data && response.data.items) rawItems = response.data.items;
 
     if (rawItems.length === 0) {
-       console.log("⚠️ El Broker respondió bien, pero la lista venía vacía.");
-       return res.json({ results: [], status: "empty_from_broker", raw: response.data });
+       console.log("⚠️ El Broker respondió bien, pero no encontró nada para esa palabra.");
+       return res.json({ results: [], status: "empty_from_broker" });
     }
 
     // Mapeamos los datos al formato de FIFER
@@ -57,10 +67,10 @@ app.get('/scrape', async (req, res) => {
         title: item.title || item.name || "Producto FIFER",
         price: item.price || 0,
         permalink: item.permalink || item.url || item.link || "",
-        thumbnail: item.thumbnail || item.picture || item.image || ""
+        thumbnail: item.thumbnail || item.picture || item.image || item.thumbnail_id ? `https://http2.mlstatic.com/D_${item.thumbnail_id}-O.jpg` : ""
     }));
 
-    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos entregados.`);
+    console.log(`✅ [FIFER] ¡INQUILINOS CONFIRMADOS! ${products.length} productos ("${searchKeyword}") entregados.`);
     res.json({ results: products });
 
   } catch (err) {
