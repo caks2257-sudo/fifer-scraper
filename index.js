@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 10000;
 const ML_APP_ID = process.env.ML_APP_ID;
 const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
 const ML_REFRESH_TOKEN = process.env.ML_REFRESH_TOKEN;
-// 🚇 La llave del Túnel Residencial
+// 🚇 La llave del Túnel
 const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY; 
 
 let currentAccessToken = null;
@@ -37,7 +37,7 @@ async function getValidAccessToken() {
     return currentAccessToken;
 }
 
-app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V47 (Túnel Premium ScraperAPI) - Activo"));
+app.get('/', (req, res) => res.send("🚀 [FIFER] Motor V48 (Ultra Premium + IP Chilena) - Activo"));
 
 app.get('/scrape', async (req, res) => {
   const { categoryId } = req.query;
@@ -49,10 +49,10 @@ app.get('/scrape', async (req, res) => {
     const accessToken = await getValidAccessToken();
     const targetUrl = `https://api.mercadolibre.com/sites/MLC/search?category=${categoryId}&limit=5`;
     
-    // 💡 LA MAQUINARIA PESADA: Agregamos &premium=true al túnel
-    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true&premium=true`;
+    // 💡 LA PERFORADORA ULTRA-DIAMANTE: ultra_premium=true Y country_code=cl
+    const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPERAPI_KEY}&url=${encodeURIComponent(targetUrl)}&keep_headers=true&ultra_premium=true&country_code=cl`;
 
-    console.log(`🚜 Cruzando el escudo de DataDome con IPs Premium... (Paciencia, puede tomar hasta 60s)`);
+    console.log(`🚜 Cruzando DataDome con IPs ULTRA Premium de Chile... (Paciencia, puede tomar hasta 60s)`);
     
     const response = await axios.get(proxyUrl, {
         headers: {
@@ -60,7 +60,7 @@ app.get('/scrape', async (req, res) => {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36', 
             'Accept': 'application/json'
         },
-        timeout: 60000 // Seguimos dándole 60s para que trabaje tranquilo
+        timeout: 60000 
     });
 
     if (!response.data || !response.data.results) {
@@ -76,7 +76,7 @@ app.get('/scrape', async (req, res) => {
     }));
 
     console.log(`✅ [FIFER] ¡ÉXITO ROTUNDO! ${products.length} productos 100% REALES extraídos de la bóveda.`);
-    return res.json({ results: products, source: "real_ml_api_proxied_premium" });
+    return res.json({ results: products, source: "real_ml_api_proxied_ultra_premium" });
 
   } catch (err) {
     console.error(`❌ FALLA TÉCNICA CRÍTICA:`, err.response?.data || err.message);
@@ -87,4 +87,4 @@ app.get('/scrape', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V47 en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 [FIFER] Motor V48 en puerto ${PORT}`));
